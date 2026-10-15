@@ -1,0 +1,64 @@
+{
+  "$comment": "Drives deploy/register-connector.{sh,ps1} for the Foundry IQ provider. See README 'Registration'.",
+  "id": "foundry-iq",
+  "providerName": "FoundryIq",
+  "displayName": "Foundry IQ knowledge bases",
+  "auth": {
+    "mode": "EntraObo",
+    "downstream": [
+      {
+        "resource": "https://search.azure.com",
+        "scope": "user_impersonation"
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "name": "search-service",
+      "env": "SEARCH_SERVICE",
+      "required": true,
+      "description": "Azure AI Search service name (the part before .search.windows.net)."
+    },
+    {
+      "name": "search-resource-group",
+      "env": "SEARCH_RESOURCE_GROUP",
+      "required": true,
+      "description": "Resource group of the search service."
+    },
+    {
+      "name": "knowledge-bases",
+      "env": "KNOWLEDGE_BASES",
+      "required": true,
+      "description": "Comma-separated allowlist of knowledge base names."
+    },
+    {
+      "name": "content-description",
+      "env": "CONTENT_DESCRIPTION",
+      "required": false,
+      "default": "documents from Foundry IQ knowledge bases",
+      "description": "What the data is; goes into tool descriptions."
+    },
+    {
+      "name": "use-preview-api",
+      "env": "USE_PREVIEW_API",
+      "required": false,
+      "default": "false",
+      "description": "true to use the preview retrieve API (citationUrl, sensitivity labels)."
+    }
+  ],
+  "settings": {
+    "$comment": "Container app environment variables. ${VAR} is substituted from inputs and .env.<env>. KNOWLEDGE_BASES expands to one Name entry per knowledge base.",
+    "Providers__FoundryIq__Endpoint": "https://${SEARCH_SERVICE}.search.windows.net",
+    "Providers__FoundryIq__ContentDescription": "${CONTENT_DESCRIPTION}",
+    "Providers__FoundryIq__UsePreviewApi": "${USE_PREVIEW_API}",
+    "Providers__FoundryIq__KnowledgeBases__{i}__Name": "${KNOWLEDGE_BASES[]}"
+  },
+  "hooks": {
+    "preflight": null,
+    "provision": "provision.sh",
+    "provisionPowerShell": "provision.ps1"
+  },
+  "atk": {
+    "identityProvider": "MicrosoftEntra"
+  }
+}

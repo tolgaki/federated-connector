@@ -1,0 +1,44 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.27/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.27",
+  "version": "${{APP_VERSION}}",
+  "id": "${{TEAMS_APP_ID}}",
+  "developer": {
+    "name": "${{PUBLISHER_NAME}}",
+    "websiteUrl": "${{PUBLISHER_WEBSITE_URL}}",
+    "privacyUrl": "${{PRIVACY_URL}}",
+    "termsOfUseUrl": "${{TERMS_URL}}"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "${{CONNECTOR_DISPLAY_NAME}}",
+    "full": "${{CONNECTOR_DISPLAY_NAME}} (federated connector)"
+  },
+  "description": {
+    "short": "Search and read ${{CONNECTOR_DISPLAY_NAME}} from Microsoft 365 Copilot.",
+    "full": "A read-only federated MCP connector. Copilot searches and reads ${{CONTENT_DESCRIPTION}} live, as the signed-in user; nothing is copied into Microsoft 365."
+  },
+  "accentColor": "#FFFFFF",
+  "agentConnectors": [
+    {
+      "id": "${{CONNECTOR_ID}}",
+      "displayName": "${{CONNECTOR_DISPLAY_NAME}}",
+      "description": "Search and read ${{CONTENT_DESCRIPTION}}.",
+      "toolSource": {
+        "remoteMcpServer": {
+          "mcpServerUrl": "${{CONNECTOR_MCP_URL}}",
+          "authorization": {
+            "type": "OAuthPluginVault",
+            "referenceId": "${{OAUTH_CONFIGURATION_ID}}"
+          }
+        }
+      }
+    }
+  ],
+  "validDomains": [
+    "${{CONNECTOR_HOST}}"
+  ]
+}

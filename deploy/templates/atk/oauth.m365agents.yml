@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=https://aka.ms/m365-agents-toolkits/v1.10/yaml.schema.json
+# Rendered by register-connector into deploy/build/<env>/oauth/m365agents.yml (design §9 step 3).
+# Registers the connector's single auth method in Teams Developer Portal and writes the registration id
+# (OAUTH_CONFIGURATION_ID) that both the admin center route and the app package route use.
+version: v1.10
+
+environmentFolderPath: ./env
+
+provision:
+  # The registration is owned by a Teams app id; teamsApp/create is a no-op when TEAMS_APP_ID is already set.
+  - uses: teamsApp/create
+    with:
+      name: ${{CONNECTOR_DISPLAY_NAME}}
+    writeToEnvironmentFile:
+      teamsAppId: TEAMS_APP_ID
+
+  # EntraObo: identityProvider MicrosoftEntra (Copilot obtains a token for our Entra app).
+  # OAuthPassthrough: identityProvider Custom (Copilot runs the source's own OAuth flow).
+  # Lines marked custom-only are removed by the script for MicrosoftEntra.
+  - uses: oauth/register
+    with:
+      name: ${{CONNECTOR_ID}}-auth
+      appId: ${{TEAMS_APP_ID}}
+      identityProvider: ${{OAUTH_IDENTITY_PROVIDER}}
+      flow: authorizationCode
+      clientId: ${{OAUTH_CLIENT_ID}}
+      clientSecret: ${{SECRET_OAUTH_CLIENT_SECRET}}  # custom-only
+      authorizationUrl: ${{OAUTH_AUTHORIZE_URL}}  # custom-only
+      tokenUrl: ${{OAUTH_TOKEN_URL}}  # custom-only
+      refreshUrl: ${{OAUTH_TOKEN_URL}}  # custom-only
+      scope: ${{OAUTH_SCOPES}}
+      isPKCEEnabled: ${{OAUTH_PKCE}}  # custom-only
+      targetUrlsShouldStartWith:
+        - ${{CONNECTOR_BASE_URL}}
+    writeToEnvironmentFile:
+      configurationId: OAUTH_CONFIGURATION_ID
+      applicationIdUri: OAUTH_APPLICATION_ID_URI
