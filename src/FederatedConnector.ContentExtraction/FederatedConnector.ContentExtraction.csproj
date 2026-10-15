@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FederatedConnector.ContentExtraction</RootNamespace>
+    <Description>Optional binary → text helper for federated connector providers.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FederatedConnector.Abstractions\FederatedConnector.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

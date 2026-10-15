@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FederatedConnector.Abstractions/FederatedConnector.Abstractions.csproj" />
+    <Project Path="src/FederatedConnector.ContentExtraction/FederatedConnector.ContentExtraction.csproj" />
+  </Folder>
+</Solution>

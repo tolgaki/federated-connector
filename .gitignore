@@ -1,0 +1,12 @@
+bin/
+obj/
+*.user
+.vs/
+.vscode/
+.idea/
+TestResults/
+artifacts/
+*.nupkg
+deploy/.env.*
+deploy/build/
+!deploy/.env.example
