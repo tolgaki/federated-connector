@@ -1,0 +1,63 @@
+{
+  "response": [
+    {
+      "role": "assistant",
+      "content": [ { "type": "text", "text": "[{\"ref_id\":0,\"content\":\"Employees receive 20 weeks of parental leave.\"}]" } ]
+    }
+  ],
+  "activity": [
+    { "type": "modelQueryPlanning", "id": 0, "inputTokens": 1200, "outputTokens": 90 },
+    { "type": "searchIndex", "id": 1, "knowledgeSourceName": "hr-ks", "count": 2, "elapsedMs": 210 },
+    { "type": "workIQ", "id": 2, "knowledgeSourceName": "wiq-ks", "count": 1, "elapsedMs": 400 },
+    { "type": "web", "id": 3, "knowledgeSourceName": "web-ks", "count": 1, "elapsedMs": 380 }
+  ],
+  "references": [
+    {
+      "type": "searchIndex",
+      "id": "0",
+      "activitySource": 1,
+      "docKey": "hr-1",
+      "rerankerScore": 2.71,
+      "citationUrl": "https://contoso-search.search.windows.net/indexes/hr-index/docs/hr-1?api-version=2026-08-01-preview",
+      "sensitivityLabelInfo": { "displayName": "General", "sensitivityLabelId": "00000000-0000-0000-0000-000000000000" },
+      "sourceData": {
+        "title": "Parental leave policy",
+        "content": "Employees receive 20 weeks of parental leave.\nThe policy applies to all staff.",
+        "url": "https://intranet.contoso.com/hr/leave",
+        "metadata_storage_last_modified": "2026-09-01T10:00:00Z",
+        "metadata_author": "Contoso HR"
+      }
+    },
+    {
+      "type": "searchIndex",
+      "id": "1",
+      "activitySource": 1,
+      "docKey": "hr-7",
+      "rerankerScore": 1.95,
+      "sourceData": { "chunk": "Sick leave accrues monthly." }
+    },
+    {
+      "type": "workIQ",
+      "id": "2",
+      "activitySource": 2,
+      "title": "Re: leave question",
+      "sourceData": { "content": "email body" }
+    },
+    {
+      "type": "web",
+      "id": "3",
+      "activitySource": 3,
+      "url": "https://www.example.org/leave-law",
+      "title": "Statutory leave overview",
+      "rerankerScore": 1.2,
+      "sourceData": { "snippet": "Statutory parental leave is 14 weeks." }
+    },
+    {
+      "type": "searchIndex",
+      "id": "4",
+      "activitySource": 1,
+      "rerankerScore": 1.0,
+      "sourceData": { "content": "reference without a docKey is skipped" }
+    }
+  ]
+}
