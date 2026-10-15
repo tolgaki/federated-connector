@@ -2,5 +2,9 @@
   <Folder Name="/src/">
     <Project Path="src/FederatedConnector.Abstractions/FederatedConnector.Abstractions.csproj" />
     <Project Path="src/FederatedConnector.ContentExtraction/FederatedConnector.ContentExtraction.csproj" />
+    <Project Path="src/FederatedConnector.Host/FederatedConnector.Host.csproj" />
+  </Folder>
+  <Folder Name="/src/Providers/">
+    <Project Path="src/Providers/FederatedConnector.Providers.FoundryIq/FederatedConnector.Providers.FoundryIq.csproj" />
   </Folder>
 </Solution>
