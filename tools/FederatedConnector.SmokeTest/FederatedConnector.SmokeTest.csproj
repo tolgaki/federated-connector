@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>FederatedConnector.SmokeTest</RootNamespace>
+    <AssemblyName>FederatedConnector.SmokeTest</AssemblyName>
+    <Description>Smoke test for a deployed federated MCP connector: initialize, tools/list (title + readOnlyHint), search, fetch.</Description>
+  </PropertyGroup>
+</Project>

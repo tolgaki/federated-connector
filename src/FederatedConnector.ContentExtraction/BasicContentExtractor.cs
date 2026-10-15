@@ -97,15 +97,19 @@ public sealed partial class BasicContentExtractor : IContentExtractor
             XmlResolver = null,
         });
         const string W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-        while (xml.Read())
+        while (!xml.EOF)
         {
+            if (xml.NodeType == XmlNodeType.Element && xml.NamespaceURI == W && xml.LocalName == "t")
+            {
+                // ReadElementContentAsString already advances to the next node.
+                sb.Append(xml.ReadElementContentAsString());
+                continue;
+            }
+
             if (xml.NodeType == XmlNodeType.Element && xml.NamespaceURI == W)
             {
                 switch (xml.LocalName)
                 {
-                    case "t":
-                        sb.Append(xml.ReadElementContentAsString());
-                        break;
                     case "tab":
                         sb.Append('\t');
                         break;
@@ -118,6 +122,8 @@ public sealed partial class BasicContentExtractor : IContentExtractor
             {
                 sb.Append('\n');
             }
+
+            xml.Read();
         }
 
         return sb.ToString();

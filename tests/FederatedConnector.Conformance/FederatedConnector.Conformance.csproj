@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FederatedConnector.Conformance</RootNamespace>
+    <Description>Provider conformance kit: xUnit tests any IKnowledgeProvider runs against its own test fixture.</Description>
+    <IsTestProject>false</IsTestProject>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FederatedConnector.Abstractions\FederatedConnector.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\FederatedConnector.Host\FederatedConnector.Host.csproj" />
+  </ItemGroup>
+</Project>

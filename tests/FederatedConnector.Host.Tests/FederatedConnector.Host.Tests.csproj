@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>FederatedConnector.Host.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FederatedConnector.Conformance\FederatedConnector.Conformance.csproj" />
+    <ProjectReference Include="..\..\src\FederatedConnector.Host\FederatedConnector.Host.csproj" />
+    <ProjectReference Include="..\..\tools\FederatedConnector.SmokeTest\FederatedConnector.SmokeTest.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>
