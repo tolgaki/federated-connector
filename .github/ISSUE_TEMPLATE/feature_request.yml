@@ -1,0 +1,47 @@
+name: Feature or design proposal
+description: Propose an enhancement, a contract change, or a new provider.
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of change
+      options:
+        - New provider
+        - Provider contract (Abstractions) change
+        - Copilot-facing tool surface change
+        - Host feature
+        - Registration / infrastructure
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today, and why does it matter?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: |
+        What should change? For a new provider, describe the source generically (for example "cloud file store"),
+        its auth mode (EntraObo / OAuthPassthrough / None), what a collection is, and how search, fetch and
+        permissions map onto the contract.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I have read the design doc (docs/design/blueprint.md).
+          required: true
+        - label: The proposal keeps every tool read-only and every source call as the user.
+          required: true

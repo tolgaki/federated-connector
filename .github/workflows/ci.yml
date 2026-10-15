@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build and test (.NET 10)
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --logger "trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+
+  scripts:
+    name: Check deployment scripts and templates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bash syntax
+        run: |
+          bash -n deploy/register-connector.sh
+          for f in deploy/providers/*/*.sh; do bash -n "$f"; done
+
+      - name: PowerShell syntax
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($f in Get-ChildItem deploy -Recurse -Filter *.ps1) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            foreach ($e in $errors) { Write-Host "::error file=$($f.FullName),line=$($e.Extent.StartLineNumber)::$($e.Message)"; $failed = $true }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Bicep build
+        run: |
+          az bicep install
+          for f in deploy/infra/*.bicep deploy/providers/*/*.bicep; do az bicep build --file "$f" --stdout > /dev/null; done
+
+      - name: JSON templates
+        run: for f in deploy/templates/manifest.json deploy/providers/*/provider.json; do jq empty "$f"; done

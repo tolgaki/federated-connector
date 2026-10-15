@@ -1,0 +1,61 @@
+name: Bug report
+description: Something in the host, a provider, the conformance kit or the scripts doesn't work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Security issues must not be reported here** — see [SECURITY.md](https://github.com/tolgaki/federated-connector/blob/main/SECURITY.md).
+        Please remove tokens, tenant or subscription ids, hostnames and document content from logs before pasting.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Host (MCP, auth, handles, limits)
+        - Foundry IQ provider
+        - Abstractions / provider contract
+        - Conformance kit
+        - Smoke test tool
+        - Registration scripts / infrastructure
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Configure …
+        2. Call `search` with …
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: auth-mode
+    attributes:
+      label: Auth mode
+      options: [EntraObo, OAuthPassthrough, None, Not applicable]
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      placeholder: e.g. 1a2b3c4
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: .NET SDK version, OS, hosting (Container Apps, local), registration route (admin / package).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Redacted logs or tool results.
+      render: text
