@@ -245,11 +245,11 @@ and `--destroy` / `-Destroy` reverses them.
 | Step | What happens |
 |---|---|
 | 0. Preflight | Checks `az`, `atk`, `jq` and logins; collects the provider's inputs |
-| 1. Core infrastructure | Deploys `core.bicep`; generates the handle-signing key straight into Key Vault |
+| 1. Core infrastructure | Deploys `core.bicep`; generates the handle-signing key straight into Key Vault (the vault name is salted per run, so re-creating after `--destroy` doesn't collide with the soft-deleted vault) |
 | 2. Provider provisioning | Runs the provider hook (Foundry IQ: role assignments on the search service) |
 | 3a. Entra SSO + OBO | Creates the Entra app (`access_as_user`, downstream permission, admin consent, managed-identity federated credential, Teams redirect URI) and registers SSO with ATK `oauth/register` |
 | 3b. OAuth pass-through | Registers the source's OAuth client with ATK `oauth/register` (`identityProvider: Custom`) |
-| 4. Deploy | Builds the image in the registry and configures the container app |
+| 4. Deploy | Builds the image in the registry and deploys it together with every setting in one deployment |
 | 5. Smoke test | Health check; full MCP smoke test when `CONNECTOR_TOKEN` is set |
 | 6A. Admin route | Prints the base URL and registration id for *Copilot → Connectors → Connect to MCP server* (manual) |
 | 6B. Package route | Renders the `agentConnectors` manifest, validates it, and sideloads (`atk provision`) or publishes (`--publish`) |
@@ -285,11 +285,20 @@ Implementation choices and deviations from the design:
   against a live tenant.
 - **GA fetch** uses a key-filtered search as the user instead of `GET /indexes/{index}/docs/{key}`, because document
   lookup trimming is unverified; the search is both the read and the access check.
-- **Definition reads.** Discovering knowledge base, knowledge source and index definitions may need more than
-  *Search Index Data Reader*. The Foundry IQ hook therefore also grants *Search Service Contributor* by default
-  (`GRANT_DEFINITION_READ=false` to opt out and configure `KnowledgeSources` explicitly). The connector never writes.
+- **Definition reads.** Discovering knowledge base, knowledge source and index definitions needs more than
+  *Search Index Data Reader*. The Foundry IQ hook also grants the read-only *Reader* role on the search service by
+  default (`--definition-read-role`: `Reader`, `SearchServiceContributor` or `None`). Whether *Reader* is sufficient
+  for knowledge base definitions needs confirming on a live service. With `None`, configure
+  `Providers:FoundryIq:KnowledgeBases[].KnowledgeSources` and `Providers:FoundryIq:KnowledgeSources[]` (with
+  `Index` and `KeyField`) explicitly; descriptions are then optional. The connector never writes.
 - **Remote knowledge sources** (web, remote SharePoint) cannot be re-read by key; `fetch` returns the search-time
-  excerpt with `truncated: true`.
+  excerpt with `truncated: true`. This follows design §6.2, but for a non-public remote source it means `fetch` does
+  not re-check access (a tension with §3.1 item 3). The excerpt only goes back to the same user, within the handle
+  lifetime.
+- **Work IQ exclusion** leaves Work IQ sources out of `knowledgeSourceParams` and drops any Work IQ references. Whether
+  the retrieve API still queries sources that the request omits needs confirming on a live service; if it does,
+  remove Work IQ sources from knowledge bases that the connector serves.
+- **GA fetch** filters on the index key field, which must be filterable.
 - **Auth errors from the source** surface as an `isError` result with category `auth`, not as an HTTP 401, because the
   stateless Streamable HTTP response is already under way.
 - **`invalid_request`** is an extra error category for host-side argument validation.

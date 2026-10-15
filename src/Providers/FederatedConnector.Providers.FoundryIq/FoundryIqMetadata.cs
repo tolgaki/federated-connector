@@ -36,17 +36,28 @@ internal sealed class FoundryIqMetadata(FoundryIqOptions options, IMemoryCache c
 
         string? description = kb.Description;
         IEnumerable<string> sourceNames = kb.KnowledgeSources;
-        if (description is null || kb.KnowledgeSources.Length == 0)
+        if (kb.KnowledgeSources.Length == 0)
         {
             using var doc = await client.GetKnowledgeBaseAsync(kb.Name, ctx, ct).ConfigureAwait(false);
             var root = doc.RootElement;
             description ??= Json.String(root, "description");
-            if (kb.KnowledgeSources.Length == 0)
+            sourceNames = Json.Array(root, "knowledgeSources")
+                .Select(e => e.ValueKind == JsonValueKind.String ? e.GetString() : Json.String(e, "name"))
+                .OfType<string>()
+                .ToList();
+        }
+        else if (description is null)
+        {
+            // Sources are configured, so the definition is only needed for its description. Least-privilege
+            // deployments may not be allowed to read definitions; that must not break search or fetch.
+            try
             {
-                sourceNames = Json.Array(root, "knowledgeSources")
-                    .Select(e => e.ValueKind == JsonValueKind.String ? e.GetString() : Json.String(e, "name"))
-                    .OfType<string>()
-                    .ToList();
+                using var doc = await client.GetKnowledgeBaseAsync(kb.Name, ctx, ct).ConfigureAwait(false);
+                description = Json.String(doc.RootElement, "description");
+            }
+            catch (ProviderException ex) when (ex.Kind is ProviderErrorKind.Forbidden or ProviderErrorKind.Auth or ProviderErrorKind.NotFound)
+            {
+                description = null;
             }
         }
 

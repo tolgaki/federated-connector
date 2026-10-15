@@ -56,23 +56,24 @@ public sealed class ConnectorToolService(
                 return Error("invalid_request", $"Unknown tool '{Sanitise(name)}'.");
             }
 
-            // Host invariant: if the provider needs a user credential and none is available, fail before the provider.
-            var user = await users.GetCurrentAsync(ct).ConfigureAwait(false);
-            if (descriptor.Auth is not AuthRequirement.None && (user is null || !user.Token.IsAvailable || user.Identity.IsAnonymous))
-            {
-                outcome = "auth";
-                return Error(ProviderErrorKind.Auth);
-            }
-
-            user ??= new RequestUser(UserIdentity.Anonymous, NoUserTokenSource.Instance);
-            identity = user.Identity;
-            var ctx = new ProviderContext(user.Identity, user.Token, serviceCredentials, extractor, settings.Section);
-
+            // The overall timeout covers user resolution (for example a userinfo call) as well as the provider.
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(_options.Limits.ToolTimeoutSeconds));
 
             try
             {
+                // Host invariant: if the provider needs a user credential and none is available, fail before the provider.
+                var user = await users.GetCurrentAsync(timeout.Token).ConfigureAwait(false);
+                if (descriptor.Auth is not AuthRequirement.None && (user is null || !user.Token.IsAvailable || user.Identity.IsAnonymous))
+                {
+                    outcome = "auth";
+                    return Error(ProviderErrorKind.Auth);
+                }
+
+                user ??= new RequestUser(UserIdentity.Anonymous, NoUserTokenSource.Instance);
+                identity = user.Identity;
+                var ctx = new ProviderContext(user.Identity, user.Token, serviceCredentials, extractor, settings.Section);
+
                 switch (name)
                 {
                     case ToolCatalog.Search:
@@ -205,15 +206,25 @@ public sealed class ConnectorToolService(
     private JsonObject SearchJson(SearchResultSet result, int top, string providerId, UserIdentity user)
     {
         var array = new JsonArray();
+        var partial = result.Partial;
         foreach (var hit in result.Hits.Take(top))
         {
             var payload = hit.Handle.Collection is null && hit.Collection is not null
                 ? hit.Handle with { Collection = hit.Collection }
                 : hit.Handle;
+            var id = handles.Encode(providerId, payload, user);
+            if (id.Length > HandleCodec.MaxHandleLength)
+            {
+                // Never hand out an id that fetch would reject.
+                logger.LogWarning("Dropped a hit whose handle exceeds {Max} characters; the provider payload is too large.", HandleCodec.MaxHandleLength);
+                partial = true;
+                continue;
+            }
+
             var (snippet, _) = TextNormalizer.Truncate(TextNormalizer.Normalise(hit.Snippet), _options.Limits.MaxSnippetChars);
             array.Add(new JsonObject
             {
-                ["id"] = handles.Encode(providerId, payload, user),
+                ["id"] = id,
                 ["title"] = TextNormalizer.Normalise(hit.Title),
                 ["snippet"] = snippet,
                 ["url"] = SafeUrl(hit.Url),
@@ -223,7 +234,7 @@ public sealed class ConnectorToolService(
         }
 
         var obj = new JsonObject { ["results"] = array };
-        if (result.Partial)
+        if (partial)
         {
             obj["partial"] = true;
         }

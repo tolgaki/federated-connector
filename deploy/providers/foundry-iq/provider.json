@@ -44,6 +44,13 @@
       "required": false,
       "default": "false",
       "description": "true to use the preview retrieve API (citationUrl, sensitivity labels)."
+    },
+    {
+      "name": "definition-read-role",
+      "env": "DEFINITION_READ_ROLE",
+      "required": false,
+      "default": "Reader",
+      "description": "Role for reading knowledge base and index definitions: Reader (default), SearchServiceContributor, or None (then configure Providers:FoundryIq:KnowledgeSources explicitly)."
     }
   ],
   "settings": {

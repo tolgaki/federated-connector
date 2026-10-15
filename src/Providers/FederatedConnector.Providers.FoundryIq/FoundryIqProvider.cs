@@ -290,7 +290,7 @@ public sealed class FoundryIqProvider : IKnowledgeProvider
         var citation = handle.Get(CitationKey);
         if (_options.UsePreviewApi && citation is not null)
         {
-            var citationUrl = ValidateCitationUrl(citation, index);
+            var citationUrl = ValidateCitationUrl(citation, index, docKey);
             if (_options.VerifyCitationUrlTrimming)
             {
                 await LookupAsUserAsync(client, index, keyField, docKey, select: keyField, ctx, ct).ConfigureAwait(false);
@@ -329,20 +329,38 @@ public sealed class FoundryIqProvider : IKnowledgeProvider
         return first.Clone();
     }
 
-    private Uri ValidateCitationUrl(string value, string index)
+    /// <summary>
+    /// The citation must be a document lookup on the configured endpoint for exactly the index and key that the access
+    /// check ran against: <c>/indexes/{index}/docs/{key}</c> or the OData form <c>/indexes('{index}')/docs('{key}')</c>.
+    /// </summary>
+    internal Uri ValidateCitationUrl(string value, string index, string docKey)
     {
         var endpoint = _options.Endpoint!;
         if (!Uri.TryCreate(value, UriKind.Absolute, out var url) ||
             url.Scheme != Uri.UriSchemeHttps ||
             !string.IsNullOrEmpty(url.UserInfo) ||
+            !string.IsNullOrEmpty(url.Fragment) ||
             !string.Equals(url.Host, endpoint.Host, StringComparison.OrdinalIgnoreCase) ||
             url.Port != endpoint.Port ||
-            !Uri.UnescapeDataString(url.AbsolutePath).Contains(index, StringComparison.Ordinal))
+            !IsDocumentPath(url.AbsolutePath, index, docKey))
         {
-            throw ProviderException.InvalidHandle("citationUrl does not point at the configured search endpoint");
+            throw ProviderException.InvalidHandle("citationUrl is not a lookup of the checked document on the configured endpoint");
         }
 
         return url;
+    }
+
+    private static bool IsDocumentPath(string absolutePath, string index, string docKey)
+    {
+        var names = absolutePath.Trim('/').Split('/').Select(Uri.UnescapeDataString).ToArray();
+        if (names is ["indexes", var i, "docs", var k])
+        {
+            return i == index && k == docKey;
+        }
+
+        // OData key syntax: indexes('name')/docs('key'), with '' escaping.
+        static string Quoted(string name, string value) => $"{name}('{value.Replace("'", "''", StringComparison.Ordinal)}')";
+        return names is [var oi, var ok] && oi == Quoted("indexes", index) && ok == Quoted("docs", docKey);
     }
 
     private DocumentContent ToDocument(JsonElement fields, string docKey)

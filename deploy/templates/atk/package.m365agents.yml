@@ -1,12 +1,19 @@
 # yaml-language-server: $schema=https://aka.ms/m365-agents-toolkits/v1.10/yaml.schema.json
 # Rendered by register-connector into deploy/build/<env>/package/m365agents.yml (design §9 step 6B).
 # Builds the app package with agentConnectors, validates it, and sideloads it (provision) or publishes it to the
-# organisation catalogue (publish). TEAMS_APP_ID comes from the oauth step.
+# organisation catalogue (publish). TEAMS_APP_ID normally comes from the oauth step; teamsApp/create creates it
+# when there was no OAuth registration (auth mode None) and is skipped when it already exists.
 version: v1.10
 
 environmentFolderPath: ./env
 
 provision:
+  - uses: teamsApp/create
+    with:
+      name: ${{CONNECTOR_DISPLAY_NAME}}
+    writeToEnvironmentFile:
+      teamsAppId: TEAMS_APP_ID
+
   - uses: teamsApp/zipAppPackage
     with:
       manifestPath: ./appPackage/manifest.json

@@ -23,9 +23,15 @@ param displayName string
 @description('Compiled-in provider name, e.g. FoundryIq.')
 param providerName string
 
+@description('Random salt kept in the script state. A new salt after --destroy avoids colliding with the soft-deleted, purge-protected Key Vault name.')
+param nameSalt string = ''
+
+@description('Additional container environment variables ({ name, value }): provider settings and Entra configuration. Applied in the same deployment as the image so a revision never starts without them.')
+param extraEnv array = []
+
 param tags object = {}
 
-var suffix = uniqueString(resourceGroup().id, baseName)
+var suffix = uniqueString(resourceGroup().id, baseName, nameSalt)
 var placeholderImage = 'mcr.microsoft.com/k8se/quickstart:latest'
 
 resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -136,7 +142,8 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
     configuration: {
       ingress: {
         external: true
-        targetPort: 8080
+        // The placeholder image listens on 80; the host listens on 8080.
+        targetPort: empty(containerImage) ? 80 : 8080
         transport: 'auto'
         allowInsecure: false
       }
@@ -157,7 +164,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'host'
           image: empty(containerImage) ? placeholderImage : containerImage
           resources: { cpu: json('0.5'), memory: '1Gi' }
-          env: [
+          env: concat([
             { name: 'Connector__DisplayName', value: displayName }
             { name: 'Connector__Provider', value: providerName }
             { name: 'Connector__HandleSigningKey', secretRef: 'handle-signing-key' }
@@ -165,7 +172,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'Connector__KeyVaultUri', value: vault.properties.vaultUri }
             { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId }
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: insights.properties.ConnectionString }
-          ]
+          ], extraEnv)
           probes: empty(containerImage) ? [] : [
             { type: 'Liveness', httpGet: { path: '/healthz', port: 8080 } }
             { type: 'Readiness', httpGet: { path: '/healthz', port: 8080 } }

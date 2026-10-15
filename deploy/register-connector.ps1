@@ -167,6 +167,7 @@ function Step-Core {
     Log '1. Core infrastructure'
     if (Get-State 'CONTAINER_APP_NAME') { Info 'already deployed (skip)'; return }
     Invoke-Native az group create --name $ResourceGroup --location $Location --only-show-errors --output none | Out-Null
+    if (-not (Get-State 'NAME_SALT')) { Set-State 'NAME_SALT' ([Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(4)).ToLowerInvariant()) }
     # The signing key goes through a private parameters file so it never appears on a command line.
     $keyFile = New-TemporaryFile
     try {
@@ -178,7 +179,7 @@ function Step-Core {
         } | ConvertTo-Json -Depth 5 | Set-Content $keyFile
         $outputs = Invoke-Native az deployment group create --name 'fc-core' --resource-group $ResourceGroup `
             --template-file (Join-Path $DeployDir 'infra/core.bicep') `
-            --parameters "baseName=$BaseName" "location=$Location" "displayName=$DisplayName" "providerName=$ProviderName" `
+            --parameters "baseName=$BaseName" "location=$Location" "displayName=$DisplayName" "providerName=$ProviderName" "nameSalt=$(Get-State 'NAME_SALT')" `
             --parameters "@$keyFile" `
             --query properties.outputs --only-show-errors -o json | ConvertFrom-Json
     }
@@ -387,12 +388,6 @@ function Step-Deploy {
     Info "building $image in the registry"
     Invoke-Native az acr build --registry (Get-State 'REGISTRY_NAME') --image "federated-connector:$tag" --file (Join-Path $RepoRoot 'Dockerfile') $RepoRoot --only-show-errors --output none | Out-Null
 
-    # Re-apply core with the image (adds registry identity and health probes); the signing key secret is kept.
-    Invoke-Native az deployment group create --name 'fc-core' --resource-group $ResourceGroup `
-        --template-file (Join-Path $DeployDir 'infra/core.bicep') `
-        --parameters "baseName=$BaseName" "location=$Location" "displayName=$DisplayName" "providerName=$ProviderName" "containerImage=$image" `
-        --only-show-errors --output none | Out-Null
-
     $vars = @(Get-ProviderEnvVars)
     if ($AuthMode -eq 'EntraObo') {
         $appId = Get-State 'ENTRA_APP_ID'
@@ -409,8 +404,24 @@ function Step-Deploy {
         )
         if (Get-State 'OAUTH_APPLICATION_ID_URI') { $vars += "Connector__AcceptedAudiences__2=$(Get-State 'OAUTH_APPLICATION_ID_URI')" }
     }
-    Invoke-Native az containerapp update --name (Get-State 'CONTAINER_APP_NAME') --resource-group $ResourceGroup `
-        --set-env-vars @vars --only-show-errors --output none | Out-Null
+
+    # One deployment sets the image, registry identity, probes AND every setting, so no revision starts half-configured.
+    # The signing key secret already exists in Key Vault and is referenced, not passed again.
+    $extraEnv = @($vars | ForEach-Object { $i = $_.IndexOf('='); @{ name = $_.Substring(0, $i); value = $_.Substring($i + 1) } })
+    $paramsFile = New-TemporaryFile
+    try {
+        @{
+            '$schema'      = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
+            contentVersion = '1.0.0.0'
+            parameters     = @{ containerImage = @{ value = $image }; extraEnv = @{ value = $extraEnv } }
+        } | ConvertTo-Json -Depth 6 | Set-Content $paramsFile
+        Invoke-Native az deployment group create --name 'fc-core' --resource-group $ResourceGroup `
+            --template-file (Join-Path $DeployDir 'infra/core.bicep') `
+            --parameters "baseName=$BaseName" "location=$Location" "displayName=$DisplayName" "providerName=$ProviderName" "nameSalt=$(Get-State 'NAME_SALT')" `
+            --parameters "@$paramsFile" `
+            --only-show-errors --output none | Out-Null
+    }
+    finally { Remove-Item $paramsFile -Force }
     Set-State 'HOST_IMAGE' $image
 }
 
@@ -449,8 +460,16 @@ function Step-PackageRoute {
     $appPackage = Join-Path $dir 'appPackage'
     New-Item -ItemType Directory -Force -Path $appPackage | Out-Null
     Copy-Item (Join-Path $DeployDir 'templates/atk/package.m365agents.yml') (Join-Path $dir 'm365agents.yml') -Force
-    foreach ($f in 'manifest.json', 'color.png', 'outline.png') { Copy-Item (Join-Path $DeployDir "templates/$f") $appPackage -Force }
-    Write-AtkEnvFile $dir | Out-Null
+    foreach ($f in 'color.png', 'outline.png') { Copy-Item (Join-Path $DeployDir "templates/$f") $appPackage -Force }
+    $manifest = Get-Content (Join-Path $DeployDir 'templates/manifest.json') -Raw
+    if ($AuthMode -eq 'None') {
+        # Public data: no OAuth registration exists, so the connector entry carries no authorization block.
+        $m = $manifest | ConvertFrom-Json
+        foreach ($c in $m.agentConnectors) { $c.toolSource.remoteMcpServer.PSObject.Properties.Remove('authorization') }
+        $manifest = $m | ConvertTo-Json -Depth 20
+    }
+    Set-Content (Join-Path $appPackage 'manifest.json') $manifest
+    $envFile = Write-AtkEnvFile $dir
     Push-Location $dir
     try {
         if ($Publish) {
@@ -463,6 +482,7 @@ function Step-PackageRoute {
         }
     }
     finally { Pop-Location }
+    if (-not (Get-State 'TEAMS_APP_ID')) { Set-State 'TEAMS_APP_ID' "$((Read-KeyValueFile $envFile)['TEAMS_APP_ID'])" }
 }
 
 # ---------------------------------------------------------------- destroy

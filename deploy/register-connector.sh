@@ -175,6 +175,7 @@ step_core() {
   log "1. Core infrastructure"
   if [[ -n "$(state_get CONTAINER_APP_NAME)" ]]; then info "already deployed (skip)"; return; fi
   az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --only-show-errors --output none
+  if [[ -z "$(state_get NAME_SALT)" ]]; then state_set NAME_SALT "$(openssl rand -hex 4)"; fi
   # The signing key goes through a private parameters file so it never appears on a command line.
   local keyfile outputs; keyfile="$(mktemp)"; chmod 600 "$keyfile"
   jq -n --arg k "$(openssl rand -base64 32)" '{"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#", contentVersion: "1.0.0.0", parameters: {handleSigningKey: {value: $k}}}' > "$keyfile"
@@ -182,6 +183,7 @@ step_core() {
     --name "fc-core" --resource-group "$RESOURCE_GROUP" \
     --template-file "$DEPLOY_DIR/infra/core.bicep" \
     --parameters baseName="$BASE_NAME" location="$LOCATION" displayName="$DISPLAY_NAME" providerName="$PROVIDER_NAME" \
+                 nameSalt="$(state_get NAME_SALT)" \
     --parameters "@$keyfile" \
     --query properties.outputs --only-show-errors -o json)" || { rm -f "$keyfile"; die "core deployment failed"; }
   rm -f "$keyfile"
@@ -363,12 +365,6 @@ step_deploy() {
   info "building $image in the registry"
   az acr build --registry "$registry" --image "federated-connector:$tag" --file "$REPO_ROOT/Dockerfile" "$REPO_ROOT" --only-show-errors --output none
 
-  # Re-apply core with the image (adds registry identity and health probes); the signing key secret is kept.
-  az deployment group create --name "fc-core" --resource-group "$RESOURCE_GROUP" \
-    --template-file "$DEPLOY_DIR/infra/core.bicep" \
-    --parameters baseName="$BASE_NAME" location="$LOCATION" displayName="$DISPLAY_NAME" providerName="$PROVIDER_NAME" containerImage="$image" \
-    --only-show-errors --output none
-
   local -a vars=()
   while IFS= read -r line; do vars+=("$line"); done < <(provider_env_vars)
   if [[ "$AUTH_MODE" == "EntraObo" ]]; then
@@ -385,8 +381,24 @@ step_deploy() {
     )
     if [[ -n "$(state_get OAUTH_APPLICATION_ID_URI)" ]]; then vars+=("Connector__AcceptedAudiences__2=$(state_get OAUTH_APPLICATION_ID_URI)"); fi
   fi
-  az containerapp update --name "$(state_get CONTAINER_APP_NAME)" --resource-group "$RESOURCE_GROUP" \
-    --set-env-vars "${vars[@]}" --only-show-errors --output none
+
+  # One deployment sets the image, registry identity, probes AND every setting, so no revision starts half-configured.
+  # The signing key secret already exists in Key Vault and is referenced, not passed again.
+  local params; params="$(mktemp)"
+  printf '%s\n' "${vars[@]}" | jq -R -s --arg image "$image" '{
+      "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+      contentVersion: "1.0.0.0",
+      parameters: {
+        containerImage: { value: $image },
+        extraEnv: { value: [ split("\n")[] | select(length > 0) | capture("^(?<name>[^=]+)=(?<value>.*)$") ] }
+      } }' > "$params"
+  az deployment group create --name "fc-core" --resource-group "$RESOURCE_GROUP" \
+    --template-file "$DEPLOY_DIR/infra/core.bicep" \
+    --parameters baseName="$BASE_NAME" location="$LOCATION" displayName="$DISPLAY_NAME" providerName="$PROVIDER_NAME" \
+                 nameSalt="$(state_get NAME_SALT)" \
+    --parameters "@$params" \
+    --only-show-errors --output none || { rm -f "$params"; die "host deployment failed"; }
+  rm -f "$params"
   state_set HOST_IMAGE "$image"
 }
 
@@ -422,8 +434,14 @@ step_package_route() {
   local dir="$BUILD_DIR/package"
   mkdir -p "$dir/appPackage"
   cp "$DEPLOY_DIR/templates/atk/package.m365agents.yml" "$dir/m365agents.yml"
-  cp "$DEPLOY_DIR/templates/manifest.json" "$DEPLOY_DIR/templates/color.png" "$DEPLOY_DIR/templates/outline.png" "$dir/appPackage/"
-  atk_env_file "$dir" >/dev/null
+  cp "$DEPLOY_DIR/templates/color.png" "$DEPLOY_DIR/templates/outline.png" "$dir/appPackage/"
+  if [[ "$AUTH_MODE" == "None" ]]; then
+    # Public data: no OAuth registration exists, so the connector entry carries no authorization block.
+    jq 'del(.agentConnectors[].toolSource.remoteMcpServer.authorization)' "$DEPLOY_DIR/templates/manifest.json" > "$dir/appPackage/manifest.json"
+  else
+    cp "$DEPLOY_DIR/templates/manifest.json" "$dir/appPackage/"
+  fi
+  local envfile; envfile="$(atk_env_file "$dir")"
   if $PUBLISH; then
     (cd "$dir" && atk publish --env "$ENV_NAME" --interactive false)
     info "submitted to the organisation catalogue; an admin must approve it"
@@ -431,6 +449,7 @@ step_package_route() {
     (cd "$dir" && atk provision --env "$ENV_NAME" --interactive false)
     info "sideloaded for the signed-in Microsoft 365 account"
   fi
+  if [[ -z "$(state_get TEAMS_APP_ID)" ]]; then state_set TEAMS_APP_ID "$(atk_read "$envfile" TEAMS_APP_ID)"; fi
 }
 
 # ---------------------------------------------------------------- destroy

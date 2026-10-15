@@ -107,6 +107,11 @@ public abstract class ProviderConformanceTests<TFixture>(TFixture fixture) : ICl
     [Fact]
     public async Task Two_user_permission_test()
     {
+        if (!NeedsUser)
+        {
+            return; // auth mode None: public data only, there is no per-user permission to test
+        }
+
         var a = Fixture.CreateContext(ConformanceUser.A);
         var b = Fixture.CreateContext(ConformanceUser.B);
         var query = new SearchQuery(Fixture.RestrictedQuery, null, 20);

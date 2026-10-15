@@ -1,6 +1,7 @@
 using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using FederatedConnector.Abstractions;
@@ -55,7 +56,7 @@ public sealed class HandleCodec
             U = user.HashedId,
             Exp = _time.GetUtcNow().Add(_lifetime).ToUnixTimeSeconds(),
         };
-        var json = JsonSerializer.SerializeToUtf8Bytes(body, HandleJson.Default.HandleBody);
+        var json = JsonSerializer.SerializeToUtf8Bytes(body, HandleJson.Compact.HandleBody);
         var encoded = Base64Url.EncodeToString(json);
         var signed = Version + "." + encoded;
         return signed + "." + Base64Url.EncodeToString(Sign(_key, signed));
@@ -96,7 +97,7 @@ public sealed class HandleCodec
         HandleBody? body;
         try
         {
-            body = JsonSerializer.Deserialize(json, HandleJson.Default.HandleBody);
+            body = JsonSerializer.Deserialize(json, HandleJson.Compact.HandleBody);
         }
         catch (JsonException)
         {
@@ -145,6 +146,16 @@ public sealed class HandleCodec
     }
 }
 
-[JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(HandleCodec.HandleBody))]
-internal sealed partial class HandleJson : JsonSerializerContext;
+internal sealed partial class HandleJson : JsonSerializerContext
+{
+    // Non-ASCII stays as UTF-8 instead of 6-byte \uXXXX escapes, so handles for non-English content stay small.
+    // Safe here: the JSON is base64url-encoded and never embedded in HTML or script.
+    private static readonly JsonSerializerOptions Relaxed = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
+    public static HandleJson Compact { get; } = new(Relaxed);
+}
